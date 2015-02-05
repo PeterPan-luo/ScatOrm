@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<class name="com.scatorm.beans.Style" table="style">
+	<Id name="styleId" column="styleId" identity="true"/>
+	<property name="style" column="style"/>
+	<onetomany name="booklist" class="com.scatorm.beans.Book">
+		<column name="styleId"/>
+	</onetomany>
+</class>

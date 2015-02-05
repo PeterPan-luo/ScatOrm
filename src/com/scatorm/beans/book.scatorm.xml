@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<class name="com.scatorm.beans.Book" table="book">
+	<Id name="bookId" column="bookId" identity="true"/>
+	<property name="bookname" column="bookname"/>
+	<property name="author" column="author"/>
+	<property name="publisher" column="publisher"/>
+	<manytoone name="style" class=" com.scatorm.beans.Style">
+		<column name="styleId"/>
+	</manytoone>
+</class>
