@@ -39,16 +39,37 @@ public class XMLFactory {
 			Element rootElement = document.getRootElement();
 			Element datasourceEle = rootElement.element("datasource");
 			Element jdbcEle = datasourceEle.element("jdbc");
-			List<Element> propertys =  jdbcEle.elements();
-			for(Element property : propertys){
-				Attribute nameAttr = property.attribute("name");
-				Attribute valueAttr = property.attribute("value");
-				if (valueAttr != null) {
-					jdbcMap.put(nameAttr.getText(), valueAttr.getText());
-				}else {
-					jdbcMap.put(nameAttr.getText(), property.getText());
+			Element dsEls = datasourceEle.element("ds");
+			
+			if (dsEls != null) {
+				//配置了数据源，不使用jdbc
+				jdbcMap.put(dsEls.attributeValue("name"), dsEls.attributeValue("class"));
+				List<Element> dsElements = dsEls.elements();
+				for(Element dsElement : dsElements){
+					Attribute nameAttr = dsElement.attribute("name");
+					Attribute valueAttr = dsElement.attribute("value");
+					if (valueAttr != null) {
+						//有name,也有value属性
+						jdbcMap.put(nameAttr.getText(), valueAttr.getText());
+					}else {
+						//有name,没有value
+						jdbcMap.put(nameAttr.getText(), dsElement.getTextTrim());
+					}
+				}
+				
+			}else {
+				List<Element> propertys =  jdbcEle.elements();
+				for(Element property : propertys){
+					Attribute nameAttr = property.attribute("name");
+					Attribute valueAttr = property.attribute("value");
+					if (valueAttr != null) {
+						jdbcMap.put(nameAttr.getText(), valueAttr.getText());
+					}else {
+						jdbcMap.put(nameAttr.getText(), property.getText());
+					}
 				}
 			}
+			
 			Constant.DBMAP = jdbcMap;
 			ReadBeanXML(rootElement);
 		} catch (DocumentException e) {

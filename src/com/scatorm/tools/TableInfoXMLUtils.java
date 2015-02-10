@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.dom4j.Attribute;
 import org.dom4j.Document;
 import org.dom4j.DocumentException;
 import org.dom4j.Element;
@@ -41,11 +42,10 @@ public class TableInfoXMLUtils {
 						id = new Id();
 						id.setIdname(element.attributeValue("name"));
 						id.setIdcolumn(element.attributeValue("column"));
-						String identity = element.attributeValue("identity");
-						if (!identity.equalsIgnoreCase("true")) {
-							id.setIdentity(false);
-						}else {
-							id.setIdentity(true);
+						Attribute identityAttr = element.attribute("identity");
+						
+						if (identityAttr != null) {
+							id.setIdentity(Boolean.parseBoolean(identityAttr.getValue()));
 						}
 					}else if (element.getName().equals("property")) {
 						if(null == properties)
@@ -53,6 +53,10 @@ public class TableInfoXMLUtils {
 						Property property = new Property();
 						property.setPropertyname(element.attributeValue("name"));
 						property.setPropertycolumn(element.attributeValue("column"));
+						Attribute defaultValueAttr = element.attribute("default");
+						if (defaultValueAttr != null) {
+							property.setDefaultValue(defaultValueAttr.getValue());
+						}
 						properties.add(property);
 					}else if (element.getName().equals("manytoone")) {
 						if(null == manytoOnes)

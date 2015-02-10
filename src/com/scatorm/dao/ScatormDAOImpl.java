@@ -1,12 +1,23 @@
 package com.scatorm.dao;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.swing.plaf.SliderUI;
 
 import com.scatorm.beans.Book;
 import com.scatorm.beans.Style;
+import com.scatorm.cache.Cache;
+import com.scatorm.cache.CacheFactory;
 import com.scatorm.datasource.DBControl;
+import com.scatorm.sqltools.SQLInfo;
+import com.scatorm.sqltools.SQLTools;
+import com.scatorm.sqltools.ScatDetachedCriteria;
 import com.scatorm.tableinfo.Id;
 import com.scatorm.tableinfo.ManytoOne;
 import com.scatorm.tableinfo.OnetoMany;
@@ -185,19 +196,182 @@ public class ScatormDAOImpl implements ScatDAO {
 	}
 
 	public Object query(String cql) {
-		// TODO Auto-generated method stub
-		return null;
+		Object object = null;
+		List objList = queryForList(cql);
+		if (objList != null && objList.size() > 0) {
+			object = objList.get(0);
+		}
+		return object;
 	}
 
 	public List queryForList(String cql) {
-		// TODO Auto-generated method stub
-		return null;
+		//select 字段1，字段2... from 表名 where ...
+		dbControl = new DBControl();
+		SQLInfo sqlInfo = SQLTools.getSQLInfo(cql);
+		String tableName = sqlInfo.getTableName();
+		Map<String, TableInfo> map = Constant.TABLEMAP;
+		TableInfo tableInfo = null;
+		for(Entry<String, TableInfo>entry : map.entrySet()){
+			TableInfo beanTable = entry.getValue();
+			if (tableName.equals(beanTable.getTablename())) {
+				tableInfo = beanTable;
+				break;
+			}
+		}
+		String sql = "";
+		StringBuffer sqlBuffer = new StringBuffer("select * from ");
+		sqlBuffer.append(tableInfo.getTablename()).append(" ");
+		List<ManytoOne> manytoOnes = tableInfo.getManytoOnes();
+		List<String> manyConditionList = new ArrayList<String>();
+		if (manytoOnes != null) {
+			for(ManytoOne manytoOne : manytoOnes){
+				String manyClassName = manytoOne.getManyclass();
+				TableInfo manyTableInfo = map.get(manyClassName);
+				String manyTableName = manyTableInfo.getTablename();
+				sqlBuffer.append(",").append(manyTableName).append(" ");
+				String manyCondition = tableInfo.getTablename() + "." + manytoOne.getManycolumn() +
+						"=" + manyTableName + "." + manyTableInfo.getId().getIdcolumn();
+				manyConditionList.add(manyCondition);
+			}
+			sqlBuffer.append(" where ");
+			for (String manyCondition : manyConditionList) {
+				sqlBuffer.append(manyCondition).append(" and ");
+			}
+			//去除最后的and
+		   sql = sqlBuffer.substring(0, sqlBuffer.length() - 4);
+		}
+		
+		List<String> operationList = sqlInfo.getOperation();
+		List<String> conditionList = sqlInfo.getCondition();
+		if (operationList != null) {
+			StringBuffer conditonSb = new StringBuffer();
+			if (!sql.contains("where")) {
+				conditonSb.append(" where ");
+			}else {
+				conditonSb.append(" and ");
+			}
+			
+			for (int i = 0; i < conditionList.size(); i++) {
+				conditonSb.append(tableInfo.getTablename() + "." + conditionList.get(i)).append(" ");
+				if (i != conditionList.size() - 1) {
+				    conditonSb.append(operationList.get(i)).append(" ");
+				}
+			}
+			sql += conditonSb.toString();
+		}
+		System.out.println(sql);
+		ResultSet rs = dbControl.getData(sql);
+		Id id = tableInfo.getId();
+		List<Property> properties = tableInfo.getProperties();
+		List<Object> objectList = new ArrayList<Object>();
+		try {
+			while(rs.next()){
+				Class objClass = Class.forName(tableInfo.getClassname());
+				Object object = objClass.newInstance();
+				String idName = id.getIdname();
+				Object idValue = rs.getObject(tableInfo.getTablename() + "." + id.getIdcolumn());
+				ReflectionUtils.setFieldValue(object, idName, idValue);
+				if (properties != null) {
+					for(Property property : properties){
+						String propertyName = property.getPropertyname();
+						String propertyColumn = property.getPropertycolumn();
+						Object propertyValue = rs.getObject(tableInfo.getTablename() + "." + propertyColumn);
+						ReflectionUtils.setFieldValue(object, propertyName, propertyValue);
+					}
+				}
+				if (manytoOnes != null) {
+					for(ManytoOne manytoOne : manytoOnes){
+						String manyClassName = manytoOne.getManyclass();
+						String manyName = manytoOne.getManyname();
+						TableInfo manyTableInfo = map.get(manyClassName);
+						Class manyClass = Class.forName(manyClassName);
+						Object manyObject = manyClass.newInstance();
+						Id manyId = manyTableInfo.getId();
+						String manyIdName = manyId.getIdname();
+						String manyIdCloumn = manyId.getIdcolumn();
+						Object manyIdValue = rs.getObject(manyTableInfo.getTablename() + "." + manyIdCloumn);
+						ReflectionUtils.setFieldValue(manyObject, manyIdName, manyIdValue);
+						List<Property> manyProperties = manyTableInfo.getProperties();
+						if (manyProperties != null) {
+							for(Property manyPro : manyProperties){
+								String manyProName = manyPro.getPropertyname();
+								String manyProColumn = manyPro.getPropertycolumn();
+								Object manyProValue = rs.getObject(manyTableInfo.getTablename() + "." + manyProColumn);
+								ReflectionUtils.setFieldValue(manyObject, manyProName, manyProValue);
+							}
+						}
+						//设置外键对象
+						ReflectionUtils.setFieldValue(object, manyName, manyObject);
+					}
+				}
+				objectList.add(object);
+			}
+		} catch (Exception e) {
+			// TODO: handle exception
+		}
+		return objectList;
 	}
 	
 	public static void main(String[] args) {
-		Style style = new Style();
-		style.setStyle("文学");
+		
 		ScatDAO scatDAO = new ScatormDAOImpl();
-		scatDAO.save(style);
+//		Style style = new Style();
+//		style.setStyle("文学");	
+//		scatDAO.save(style);
+		List<Book> books = scatDAO.queryForList("from book where bookId > 1");
+		System.out.println(books.size());
 	}
+
+	public List queryForList(ScatDetachedCriteria deta) {
+		dbControl = new DBControl();
+		String sql = deta.getSql();
+		ResultSet rs = dbControl.getData(sql);
+		TableInfo tableInfo = deta.getTable();
+		Id id = tableInfo.getId();
+		List<Property> properties = tableInfo.getProperties();
+		List<Object> objectList = new ArrayList<Object>();
+		try {
+			while(rs.next()){
+				String className = tableInfo.getClassname();
+				Object object = Class.forName(className).newInstance();
+				String idName = id.getIdname();
+				String idColumn = id.getIdcolumn();
+				Object idValue = rs.getObject(tableInfo.getTablename() + "." + idColumn);
+				ReflectionUtils.setFieldValue(object, idName, idValue);
+				if (properties != null) {
+					for(Property property : properties){
+						String proName = property.getPropertyname();
+						String ProCloumn = property.getPropertycolumn();
+						Object proValue = rs.getObject(tableInfo.getTablename() + "." + ProCloumn);
+						ReflectionUtils.setFieldValue(object, proName, proValue);
+					}
+				}
+				objectList.add(object);
+				
+			}
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return objectList;
+	}
+
+	/**
+	 * 从缓存中查询
+	 */
+	public Object queryFromCache(String name, String cql, long time) {
+		Object result = null;
+		CacheFactory cf = new CacheFactory();
+		result = cf.getFromCache(name);
+		if (result == null) {
+			List objectList = queryForList(cql);
+			//把查询结果放到缓存中
+			cf.addCache(name, objectList, time);
+			
+			result = cf.getFromCache(name);
+		}
+		return result;
+	}
+
+	
 }

@@ -5,9 +5,15 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
+import javax.sql.DataSource;
+
+import com.scatorm.cache.CacheThread;
 import com.scatorm.tools.Constant;
+import com.scatorm.tools.ReflectionUtils;
 import com.scatorm.tools.XMLFactory;
 
 /**
@@ -19,6 +25,7 @@ public class DBControl {
 
 	private static Map<String, String> DBMap = null;
 	private Connection conn = null;
+	private DataSource dataSource = null;
 	static{
 		load();
 	}
@@ -26,16 +33,64 @@ public class DBControl {
 		if(DBMap == null){
 			XMLFactory.getXMLInfo(XMLFactory.class.getResource("/scatorm.datasource.xml").getFile());
 			DBMap = Constant.DBMAP;
+			//开启缓存线程
+			CacheThread cacheThread = new CacheThread();
+			Thread thread = new Thread(cacheThread);
+			thread.start();
 		}
 		
 	}
 	public DBControl() {
 		if (null == DBMap) {
 			load();
-		}else {
+		}else if (DBMap.containsKey("datasource")) {
+			if (dataSource == null) {
+				try {
+					Class datasourceClass = Class.forName(DBMap.get("datasource"));
+					dataSource = (DataSource) datasourceClass.newInstance();
+					for(Entry<String, String> entry : DBMap.entrySet()){
+						String key = entry.getKey();
+						String value = entry.getValue();
+						if (!key.equals("datasource")) {
+							ReflectionUtils.setFieldValue(dataSource, key, value);
+						}
+					}
+				} catch (ClassNotFoundException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (InstantiationException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} catch (IllegalAccessException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				getDataSourceConn();
+			}else {
+				getDataSourceConn();
+			}
+		}
+		else {
 			getSimpleConnection();
 		}
 	}
+	/**
+	 * 获得数据源的连接
+	 * @return
+	 */
+	private Connection getDataSourceConn() {
+		try {
+			this.conn = dataSource.getConnection();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return this.conn;
+	}
+	/**
+	 * 获得jdbc的连接
+	 * @return
+	 */
 	private Connection getSimpleConnection() {
 		try {
 			Class.forName(DBMap.get("driver"));

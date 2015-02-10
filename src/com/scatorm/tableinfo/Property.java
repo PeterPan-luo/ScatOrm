@@ -4,6 +4,13 @@ public class Property {
 
 	private String propertyname;
 	private String propertycolumn;
+	private String defaultValue;
+	public String getDefaultValue() {
+		return defaultValue;
+	}
+	public void setDefaultValue(String defaultValue) {
+		this.defaultValue = defaultValue;
+	}
 	public String getPropertyname() {
 		return propertyname;
 	}

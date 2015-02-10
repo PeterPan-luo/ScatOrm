@@ -4,7 +4,8 @@
 	<property name="bookname" column="bookname"/>
 	<property name="author" column="author"/>
 	<property name="publisher" column="publisher"/>
-	<manytoone name="style" class=" com.scatorm.beans.Style">
+	<manytoone name="style" class="com.scatorm.beans.Style">
+	    <!-- 对应Style这个bean对象中的字段，应考虑添加对应的表的字段 -->
 		<column name="styleId"/>
 	</manytoone>
 </class>
